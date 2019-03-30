@@ -55,24 +55,7 @@ public class Encryptor {
 
     }
 
-    private enum VideoType{
-        AVI("avi"),
-        MOV("mov"),
-        WMV("wmv"),
-        MKV("mkv"),
-        RMVB("rmvb"),
-        MP4("mp4");
 
-        String name;
-
-        VideoType(String name){
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
-    }
 
     private static class VideoFileFilter implements FileFilter{
 
@@ -81,10 +64,9 @@ public class Encryptor {
             if (pathname.isDirectory())
                 return true;
 
-            String fileName = pathname.getName();
-            String suffix = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+            String suffix = FileUtils.getSuffix(pathname);
 
-            for (VideoType per : VideoType.values()){
+            for (FileUtils.VideoType per : FileUtils.VideoType.values()){
                 if (per.getName().equals(suffix)){
                     return true;
                 }
@@ -93,5 +75,7 @@ public class Encryptor {
             return false;
         }
     }
+
+
 
 }
