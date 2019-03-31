@@ -50,7 +50,7 @@ public class FileUtils {
      * @param perSize 每个部分的大小
      * @param targetFilePath 目标文件夹
      */
-    public static void cutFile(File sourceFile,long perSize,File targetFilePath){
+    public static void cutFile(File sourceFile, long perSize, File targetFilePath, AppExecutors.NormalCallback<String> callback){
         if (sourceFile.isDirectory()){
             return;
         }
@@ -68,12 +68,14 @@ public class FileUtils {
         }
         if (!fileDirectory.mkdirs()) {return;}
 
-        AppExecutors.getInstance().singleThread().execute(new Runnable() {
-            @Override
-            public void run() {
+        File targetFile;
+        if (sourceFile.length() > perSize){
+            targetFile = fileDirectory;
+        }else {
+            targetFile = targetFilePath;
+        }
 
-            }
-        });
+        AppExecutors.getInstance().singleThread().execute(new CutFileRunnable(callback,perSize,sourceFile,targetFile));
 
     }
 
@@ -96,7 +98,7 @@ public class FileUtils {
 
     private static class CutFileRunnable implements Runnable {
 
-        private AppExecutors.NormalCallback callback;
+        private AppExecutors.NormalCallback<String> callback;
         private long nowSize;
         private long perSize;
 
@@ -104,10 +106,10 @@ public class FileUtils {
         private File source;
         @NotNull
         private File target;
-        private FileOutputStream fo;
-        private BufferedOutputStream bo;
+      //  private FileOutputStream fo;
+      //  private BufferedOutputStream bo;
 
-        public CutFileRunnable(AppExecutors.NormalCallback callback,long perSize,@NotNull File sourceFile,@NotNull File targetFilePath){
+        public CutFileRunnable(AppExecutors.NormalCallback<String> callback,long perSize,@NotNull File sourceFile,@NotNull File targetFilePath){
             this.callback = callback;
             this.source = sourceFile;
             this.target = targetFilePath;
@@ -116,27 +118,41 @@ public class FileUtils {
 
         @Override
         public void run() {
+            FileInputStream fi=null;
+            FileOutputStream fo=null;
             try {
-                FileInputStream fi = new FileInputStream(source);
-                BufferedInputStream bi = new BufferedInputStream(fi);
+                fi = new FileInputStream(source);
+
                 long totalSize = source.length();
-                fo = getFileOutStream(nowSize,totalSize,target);
-                bo = new BufferedOutputStream(fo);
+                byte[] buffer = new byte[1024*100];
+                String suffix = getSuffix(source);
+                fo = getFileOutStream(nowSize,perSize,target,suffix);
 
-                int by = 0;
-                while ((by = bi.read()) >-1){
+                int length = 0;
+                long perReadSize = 0;//每个小文件读的大小
+                while ((length = fi.read(buffer)) >-1){
 
-                    bo.write(by);
-                    nowSize++;
-                    if (nowSize > perSize){//达到单个文件上限
-                        closeStream(fo,bo);
-                        fo = getFileOutStream(nowSize,totalSize,target);
-                        bo = new BufferedOutputStream(fo);
+                    fo.write(buffer,0,length);
+                    perReadSize = perReadSize + length;
+                    if (perReadSize > perSize){//达到单个文件上限
+                        nowSize = nowSize + perReadSize;
+                        perReadSize = 0;
+                        closeStream(fo);
+                        fo = getFileOutStream(nowSize,perSize,target,suffix);
                     }
                 }
 
+
+                if (callback != null){
+                    callback.onFinish("success");
+                }
+
             } catch (IOException e) {
+                callback.onFinish(e.getMessage());
                 e.printStackTrace();
+            }finally {
+                closeInStream(fi);
+                closeStream(fo);
             }
         }
 
@@ -152,18 +168,50 @@ public class FileUtils {
             }
         }
 
+        private void closeStream(FileOutputStream fo){
+            if (fo != null){
+                try {
+                    fo.close();
+                } catch (IOException e) {
+                    System.out.println("error: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
+//
+        private void closeInStream(FileInputStream fi){
+            if (fi != null){
+                try {
+                    fi.close();
+                }catch (IOException e){
+                    System.out.println("error" + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+        }
 
-        private FileOutputStream getFileOutStream(long currentSize ,long perSize,File target) throws IOException{
+
+        private FileOutputStream getFileOutStream(long currentSize ,long perSize,File target,String suffix) throws IOException{
             int index = 0;
             if (currentSize != 0){
                 index = (int) (currentSize/perSize);
             }
 
-            String fileName = target.getAbsolutePath() + index;
-            FileOutputStream fi = new FileOutputStream(fileName);
-            return fi;
+            String fileName = target.getAbsolutePath() +"\\"+ index + "."+ suffix;
+            FileOutputStream fo = new FileOutputStream(fileName);
+            return fo;
         }
 
+    }
 
+    public static void main(String[] args) {
+        File source = new File("D:\\book\\Java并发编程实战（中文版）.pdf");
+        File target = new File("D:\\out");
+        cutFile(source, Size.M.getSize()*4, target, new AppExecutors.NormalCallback<String>() {
+            @Override
+            public void onFinish(String backData) {
+                System.out.println(backData);
+            }
+        });
     }
 }

@@ -20,6 +20,6 @@ public class VideoTest {
     public void testMakFile(){
         File source = new File("C:\\Users\\Hypnotist\\Desktop\\videoTest.mp4");
         File target = new File("C:\\Users\\Hypnotist\\Desktop\\out");
-        FileUtils.cutFile(source, FileUtils.Size.G.getSize() ,target);
+        FileUtils.cutFile(source, FileUtils.Size.G.getSize() ,target,null);
     }
 }
